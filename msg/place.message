@@ -1,0 +1,4 @@
+syntax = "proto3";
+message place_message {
+    int32 location = 1;
+}

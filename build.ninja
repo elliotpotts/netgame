@@ -1,0 +1,22 @@
+cxx = clang++
+cxxflags = -Wall -Werror -g -O0 -std=c++1z -fPIC -fcolor-diagnostics
+includes = -I./include -I./msg
+libraries = -L/usr/local/lib -L./deps/lib -lboost_system -lboost_thread -lboost_coroutine -pthread -lpthread -lprotobuf
+
+rule cxx
+  depfile = $out.d
+  deps = gcc
+  command = $cxx $cxxflags $includes -MMD -MF $out.d -c $in -o $out
+
+rule link_so
+  command = $cxx $cxxflags -shared -o $out $in $libraries
+
+rule link_exe
+  command = $cxx $cxxflags -o $out $in $libraries
+
+rule msg
+  command = protoc $in --cpp_out=.
+
+build msg/place.message.pb.h: msg msg/place.message
+build bin/obj/main.o: cxx src/main.c++
+build bin/main: link_exe bin/obj/main.o
