@@ -10,7 +10,7 @@ namespace asio = boost::asio;
 namespace ip = boost::asio::ip;
 
 const auto localhost = ip::address::from_string("127.0.0.1");
-const auto hosting_endpoint = ip::tcp::endpoint(localhost, 3692);
+const auto accepting_endpoint = ip::tcp::endpoint(localhost, 3692);
 
 class client
 {
@@ -19,7 +19,7 @@ class client
 		ip::tcp::acceptor acceptor;
 		std::vector<ip::tcp::socket> peers;
 
-		void host_peers(asio::yield_context yield, int count) {
+		void bootstrap_net(asio::yield_context yield, int count) {
 			for(int i = 0; i < count; i++) {
 				peers.emplace_back(io);
 				std::cout << "Awaiting peer...\n";
@@ -28,20 +28,20 @@ class client
 			}
 		}
 
-		void join_peers(asio::yield_context yield, ip::tcp::endpoint host) {
+		void join_net(asio::yield_context yield, ip::tcp::endpoint host) {
 		}
 
 	public:
 		client(asio::io_service& io, int peer_count) :
 			io(io),
-			acceptor(io, hosting_endpoint) {
-			asio::spawn(io, [&io,peer_count,this](auto yc) { host_peers(yc, peer_count); });
+			acceptor(io, accepting_endpoint) {
+			asio::spawn(io, [&io,peer_count,this](auto yc) { bootstrap_net(yc, peer_count); });
 		}
 
 		client(asio::io_service& io, ip::tcp::endpoint host) :
 			io(io),
 			acceptor(io) {
-			asio::spawn(io, [&io,host,this](auto yc) { join_peers(yc, host); });
+			asio::spawn(io, [&io,host,this](auto yc) { join_net(yc, host); });
 		}
 };
 
