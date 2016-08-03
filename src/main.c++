@@ -5,12 +5,16 @@
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
 #include <boost/system/error_code.hpp>
+#include <boost/endian/buffers.hpp>
+#include <cstdint>
 
 namespace asio = boost::asio;
 namespace ip = boost::asio::ip;
 
-const auto localhost = ip::address::from_string("127.0.0.1");
-const auto accepting_endpoint = ip::tcp::endpoint(localhost, 3692);
+const int port = 3692;
+const auto accepting_endpoint = ip::tcp::endpoint(ip::address_v6::loopback(), port);
+
+using i32nb = boost::endian::big_int32_buf_t;
 
 class client
 {
@@ -20,11 +24,25 @@ class client
 		std::vector<ip::tcp::socket> peers;
 
 		void bootstrap_net(asio::yield_context yield, int count) {
-			for(int i = 0; i < count; i++) {
-				peers.emplace_back(io);
+			i32nb count_buf {count};
+			for(int i = 1; i < count + 1; i++) {
 				std::cout << "Awaiting peer...\n";
-				acceptor.async_accept(peers.back(), yield);
-				std::cout << "Peer #" << i + 1 << " of " << count << " connected from " << peers.back().remote_endpoint() << "\n";
+
+				peers.emplace_back(io);
+				auto& next_peer = peers.back();
+				acceptor.async_accept(next_peer, yield);
+				std::cout << "Peer #" << i << " of " << count << " connected from " << next_peer.remote_endpoint() << "\n";
+
+				i32nb i_buf {i};
+				asio::async_write(next_peer, asio::buffer(i_buf.data(), sizeof(i_buf)), yield);
+				asio::async_write(next_peer, asio::buffer(count_buf.data(), sizeof(count_buf)), yield);
+
+				for(auto it = peers.begin(); it != peers.end() - 1; it++) {
+					std::string encoded_endpoint = next_peer.remote_endpoint().address().to_string();
+					i32nb encoded_endpoint_size {static_cast<std::int32_t>(encoded_endpoint.size())};
+					asio::async_write(*it, asio::buffer(encoded_endpoint_size.data(), sizeof(encoded_endpoint_size)), yield);
+					asio::async_write(*it, asio::buffer(encoded_endpoint.data(), encoded_endpoint.size()), yield);
+				}
 			}
 		}
 
