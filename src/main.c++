@@ -21,7 +21,7 @@ namespace gp = google::protobuf;
 const int port = 3692;
 const auto accepting_endpoint = ip::tcp::endpoint(ip::address_v6::loopback(), port);
 
-class client
+class peer
 {
 	private:
 		asio::io_service& io;
@@ -113,13 +113,13 @@ class client
 		}
 
 	public:
-		client(asio::io_service& io, int peer_count) :
+		peer(asio::io_service& io, int peer_count) :
 			io(io),
 			acceptor(io, accepting_endpoint) {
 			asio::spawn(io, [&io,peer_count,this](auto yc) { bootstrap_net(yc, peer_count); });
 		}
 
-		client(asio::io_service& io, ip::tcp::endpoint host) :
+		peer(asio::io_service& io, ip::tcp::endpoint host) :
 			io(io),
 			acceptor(io, accepting_endpoint) {
 			asio::spawn(io, [&io,host,this](auto yc) { join_net(yc, host); });
@@ -129,8 +129,8 @@ class client
 int main() {
 	asio::io_service io;
 
-	client a(io, 4);
-	client b(io, accepting_endpoint);
+	peer a(io, 4);
+	peer b(io, accepting_endpoint);
 
 	io.run();
 }
