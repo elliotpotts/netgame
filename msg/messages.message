@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message notify_peer_join {
+    string address = 1;
+}
+
+message welcome_peer {
+    int32 index = 1;
+    int32 count = 2;
+}
+
+message place_message {
+    int32 location = 1;
+}

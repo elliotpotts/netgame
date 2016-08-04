@@ -1,6 +1,6 @@
 cxx = clang++
 cxxflags = -Wall -Werror -g -O0 -std=c++1z -fPIC -fcolor-diagnostics
-includes = -I./include -I./msg
+includes = -I./include -I./msg -I.
 libraries = -L/usr/local/lib -L./deps/lib -lboost_system -lboost_thread -lboost_coroutine -pthread -lpthread -lprotobuf
 
 rule cxx
@@ -17,6 +17,7 @@ rule link_exe
 rule msg
   command = protoc $in --cpp_out=.
 
-build msg/place.message.pb.h: msg msg/place.message
+build msg/messages.message.pb.h: msg msg/messages.message
+build bin/obj/messages.message.pb.obj: cxx msg/messages.message.pb.cc
 build bin/obj/main.o: cxx src/main.c++
-build bin/main: link_exe bin/obj/main.o
+build bin/main: link_exe bin/obj/main.o bin/obj/messages.message.pb.obj
