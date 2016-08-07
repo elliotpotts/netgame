@@ -19,7 +19,6 @@ namespace en = boost::endian;
 namespace gp = google::protobuf;
 
 const int port = 3692;
-const auto accepting_endpoint = ip::tcp::endpoint(ip::address_v6::loopback(), port);
 
 class peer
 {
@@ -113,24 +112,31 @@ class peer
 		}
 
 	public:
-		peer(asio::io_service& io, int peer_count) :
+		peer(asio::io_service& io, ip::tcp::endpoint local_endpoint, int peer_count) :
 			io(io),
-			acceptor(io, accepting_endpoint) {
+			acceptor(io, local_endpoint) {
 			asio::spawn(io, [&io,peer_count,this](auto yc) { bootstrap_net(yc, peer_count); });
 		}
 
-		peer(asio::io_service& io, ip::tcp::endpoint host) :
+		peer(asio::io_service& io, ip::tcp::endpoint local_endpoint, ip::tcp::endpoint bootstrapper_endpoint) :
 			io(io),
-			acceptor(io, accepting_endpoint) {
-			asio::spawn(io, [&io,host,this](auto yc) { join_net(yc, host); });
+			acceptor(io, local_endpoint) {
+			asio::spawn(io, [&io, bootstrapper_endpoint, this](auto yc) { join_net(yc, bootstrapper_endpoint); });
 		}
 };
 
 int main() {
-	asio::io_service io;
+	try {
+		asio::io_service io;
 
-	peer a(io, 4);
-	peer b(io, accepting_endpoint);
+		auto bootstrapper_endpoint = ip::tcp::endpoint{ip::address::from_string("192.168.1.84"), port};
 
-	io.run();
+		peer a(io, bootstrapper_endpoint, 2);
+		peer b(io, ip::tcp::endpoint{ip::address::from_string("192.168.1.101"), port}, bootstrapper_endpoint);
+		peer c(io, ip::tcp::endpoint{ip::address::from_string("192.168.1.102"), port}, bootstrapper_endpoint);
+
+		io.run();
+	} catch (boost::exception& e) {
+		std::cout << boost::diagnostic_information(e, true) << "\n";
+	}
 }
