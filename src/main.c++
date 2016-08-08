@@ -29,7 +29,7 @@ class peer
 		using peer_it = decltype(peers)::iterator;
 
 		template<class T>
-		T&& recieve(ip::tcp::socket& peer, asio::yield_context yield) {
+		T recieve(ip::tcp::socket& peer, asio::yield_context yield) {
 			en::big_int32_buf_t length;
 			asio::async_read(peer, asio::buffer(&length, sizeof(length)), yield);
 			std::vector<char> encoded_msg(length.value());
@@ -43,12 +43,13 @@ class peer
 				err_sstream << msg.GetTypeName();
 				throw std::runtime_error(err_sstream.str());
 			}
-			return std::move(msg);
+			return msg;
 		}
 
 		void send(gp::MessageLite& msg, ip::tcp::socket& peer, asio::yield_context yield) {
-			std::string encoded_msg = msg.SerializeAsString();
 			en::big_int32_buf_t length {msg.ByteSize()};
+			std::vector<char> encoded_msg(length.value());
+			msg.SerializeToArray(encoded_msg.data(), encoded_msg.size());
 			asio::async_write(peer, asio::buffer(&length, sizeof(length)), yield);
 			asio::async_write(peer, asio::buffer(encoded_msg.data(), msg.ByteSize()), yield);
 		}
@@ -67,7 +68,7 @@ class peer
 
 		void welcome_peer(int count, asio::yield_context yield) {
 			class welcome_peer msg;
-			msg.set_index(peers.size());
+			msg.set_index(peers.size() + 1);
 			msg.set_count(count);
 			send(msg, peers.back(), yield);
 		}
@@ -81,12 +82,14 @@ class peer
 		//
 
 		void bootstrap_net(asio::yield_context yield, int count) {
-			for(int i = 1; i < count + 1; i++) {
-				std::cout << "Awaiting peer...\n";
+			std::cout << "Bootstrapper is peer #1 of " << count << "\n";
+			// We are the 0th peer
+			for(int i = 1; i < count; i++) {
+				std::cout << "Awaiting peer #" << i + 1 << " of " << count << "\n";
 				peers.emplace_back(io);
 				auto& next_peer = peers.back();
 				acceptor.async_accept(next_peer, yield);
-				std::cout << "Peer #" << i << " of " << count << " connected from " << next_peer.remote_endpoint() << "\n";
+				std::cout << "Peer #" << i + 1<< " of " << count << " connected from " << next_peer.remote_endpoint() << "\n";
 				welcome_peer(count, yield);
 				notify_peer_join(yield);
 			}
@@ -98,10 +101,11 @@ class peer
 			host.async_connect(host_endpoint, yield);
 
 			auto welcome_msg = recieve<class welcome_peer>(host, yield);
-			int index = welcome_msg.index();
+			int me_index = welcome_msg.index();
+			int index = me_index;
 			int count = welcome_msg.count();
-
-			for(; index < count; index++) {
+			std::cout << index << "/" << count << "\n";
+			for(; index < count - me_index; index++) {
 				auto peer_join_msg = recieve<class notify_peer_join>(host, yield);
 				peers.emplace_back(io);
 				peers.back().async_connect({
@@ -115,13 +119,13 @@ class peer
 		peer(asio::io_service& io, ip::tcp::endpoint local_endpoint, int peer_count) :
 			io(io),
 			acceptor(io, local_endpoint) {
-			asio::spawn(io, [&io,peer_count,this](auto yc) { bootstrap_net(yc, peer_count); });
+			asio::spawn(io, [peer_count,this](auto yc) { bootstrap_net(yc, peer_count); });
 		}
 
 		peer(asio::io_service& io, ip::tcp::endpoint local_endpoint, ip::tcp::endpoint bootstrapper_endpoint) :
 			io(io),
 			acceptor(io, local_endpoint) {
-			asio::spawn(io, [&io, bootstrapper_endpoint, this](auto yc) { join_net(yc, bootstrapper_endpoint); });
+			asio::spawn(io, [bootstrapper_endpoint, this](auto yc) { join_net(yc, bootstrapper_endpoint); });
 		}
 };
 
@@ -131,9 +135,10 @@ int main() {
 
 		auto bootstrapper_endpoint = ip::tcp::endpoint{ip::address::from_string("192.168.1.84"), port};
 
-		peer a(io, bootstrapper_endpoint, 2);
+		peer a(io, bootstrapper_endpoint, 4);
 		peer b(io, ip::tcp::endpoint{ip::address::from_string("192.168.1.101"), port}, bootstrapper_endpoint);
 		peer c(io, ip::tcp::endpoint{ip::address::from_string("192.168.1.102"), port}, bootstrapper_endpoint);
+		peer d(io, ip::tcp::endpoint{ip::address::from_string("192.168.1.103"), port}, bootstrapper_endpoint);
 
 		io.run();
 	} catch (boost::exception& e) {
