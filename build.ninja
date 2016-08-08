@@ -19,5 +19,6 @@ rule msg
 
 build msg/messages.message.pb.h: msg msg/messages.message
 build bin/obj/messages.message.pb.obj: cxx msg/messages.message.pb.cc
+build bin/obj/peer.o: cxx src/peer.c++
 build bin/obj/main.o: cxx src/main.c++
-build bin/main: link_exe bin/obj/main.o bin/obj/messages.message.pb.obj
+build bin/main: link_exe bin/obj/main.o bin/obj/peer.o bin/obj/messages.message.pb.obj
